@@ -1,0 +1,93 @@
+mod cli;
+mod commands;
+mod db;
+mod storage;
+mod wechat;
+
+use anyhow::Result as AnyResult;
+use clap::Parser;
+use cli::{AccountCommand, Cli, Command};
+use commands::login::login;
+
+#[tokio::main]
+async fn main() -> AnyResult<()> {
+    init_logger();
+    let cli = Cli::parse();
+
+    match cli.command {
+        Command::Login(_args) => {
+            let user_id = login().await?;
+            println!("logged in as user `{user_id}`");
+        }
+        Command::Qrcode(_args) => {
+            commands::qrcode::print_qrcode().await?;
+        }
+        Command::QrcodeStatus(args) => {
+            commands::qrcode::print_qrcode_status(&args.qrcode_id).await?;
+        }
+        Command::Account(args) => match args.command {
+            AccountCommand::List => commands::account::print_accounts()?,
+            AccountCommand::Add(args) => commands::account::add_account(
+                &args.user_id,
+                &args.bot_token,
+                args.route_tag.as_deref(),
+            )?,
+            AccountCommand::Delete(args) => commands::account::delete_account(args.account)?,
+        },
+        Command::GetContextToken(args) => {
+            commands::get_context_token::run(
+                args.account,
+                args.user_id.as_deref(),
+                args.bot_token.as_deref(),
+                args.route_tag.as_deref(),
+            )
+            .await?;
+        }
+        Command::Send(args) => {
+            commands::send::run(
+                args.account,
+                args.user_id.as_deref(),
+                args.bot_token.as_deref(),
+                args.route_tag.as_deref(),
+                args.context_token.as_deref(),
+                args.text.as_deref(),
+                args.file.as_deref(),
+                args.caption.as_deref(),
+            )
+            .await?;
+        }
+        Command::Chat(args) => {
+            commands::chat::run(
+                args.account,
+                args.user_id.as_deref(),
+                args.bot_token.as_deref(),
+                args.route_tag.as_deref(),
+            )
+            .await?;
+        }
+        Command::Webhook(args) => {
+            let bind: std::net::SocketAddr =
+                format!("{}:{}", args.host, args.port).parse()?;
+            commands::webhook::run(
+                args.account,
+                args.user_id.as_deref(),
+                args.bot_token.as_deref(),
+                args.route_tag.as_deref(),
+                bind,
+            )
+            .await?;
+        }
+        Command::Serve(args) => {
+            commands::serve::run(args.host, args.port).await?;
+        }
+    }
+
+    Ok(())
+}
+
+fn init_logger() {
+    let env = env_logger::Env::default().default_filter_or("warn,wechat_cli=info");
+    let mut builder = env_logger::Builder::from_env(env);
+    builder.format_target(false);
+    let _ = builder.try_init();
+}
