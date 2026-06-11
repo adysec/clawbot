@@ -1,0 +1,420 @@
+use std::{error::Error as StdError, fmt, time::Duration};
+
+use anyhow::{Context, Result};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use reqwest::Client;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
+use crate::storage::ILINK_API_ROOT;
+
+use super::models::{
+    EmptyResponse, FetchQrCodeResponse, GetUpdatesRequest, GetUpdatesResponse, GetUploadUrlRequest,
+    GetUploadUrlResponse, QrCodeStatusResponse, SendMessageRequest,
+};
+
+const SESSION_EXPIRED_ERRCODE: i64 = -14;
+const INVALID_CONTEXT_TOKEN_CODE: i64 = -2;
+
+const MAX_RETRIES: u32 = 3;
+const RETRY_BASE_MS: u64 = 100;
+
+fn is_retryable(err: &anyhow::Error) -> bool {
+    // Retry on timeouts and connection errors, but not on API-level errors
+    err.chain()
+        .find_map(|cause| cause.downcast_ref::<reqwest::Error>())
+        .is_some_and(|e| e.is_timeout() || e.is_connect())
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct ApiStatus {
+    #[serde(default)]
+    errcode: Option<i64>,
+    #[serde(default)]
+    errmsg: Option<String>,
+    #[serde(default)]
+    ret: Option<i64>,
+    #[serde(default)]
+    err_msg: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct ApiError {
+    code: i64,
+    message: String,
+}
+
+impl fmt::Display for ApiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "API error (code {}): {}", self.code, self.message)
+    }
+}
+
+impl StdError for ApiError {}
+
+pub fn is_session_expired(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<ApiError>()
+        .is_some_and(|e| e.code == SESSION_EXPIRED_ERRCODE)
+}
+
+pub fn is_invalid_context_token(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<ApiError>()
+        .is_some_and(|e| e.code == INVALID_CONTEXT_TOKEN_CODE)
+}
+
+pub(crate) fn build_http_client() -> Client {
+    Client::builder()
+        .pool_max_idle_per_host(32)
+        .tcp_keepalive(Some(Duration::from_secs(30)))
+        .build()
+        .expect("failed to build reqwest client")
+}
+
+fn random_wechat_uin() -> String {
+    let raw = rand::random::<u32>().to_string();
+    STANDARD.encode(raw.as_bytes())
+}
+
+#[derive(Debug, Clone)]
+pub struct WeixinApiClient {
+    client: Client,
+    bot_token: String,
+    route_tag: Option<String>,
+}
+
+impl WeixinApiClient {
+    pub fn new(bot_token: &str, route_tag: Option<String>) -> Self {
+        Self {
+            client: build_http_client(),
+            bot_token: bot_token.to_string(),
+            route_tag,
+        }
+    }
+
+    pub fn bot_token(&self) -> &str {
+        &self.bot_token
+    }
+
+    pub fn route_tag(&self) -> Option<&str> {
+        self.route_tag.as_deref()
+    }
+
+    fn auth_headers(&self) -> reqwest::header::HeaderMap {
+        use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static("authorizationtype"),
+            HeaderValue::from_static("ilink_bot_token"),
+        );
+        headers.insert(
+            HeaderName::from_static("x-wechat-uin"),
+            HeaderValue::from_str(&random_wechat_uin()).unwrap(),
+        );
+        if !self.bot_token.is_empty() {
+            headers.insert(
+                reqwest::header::AUTHORIZATION,
+                HeaderValue::from_str(&format!("Bearer {}", self.bot_token)).unwrap(),
+            );
+        }
+        if let Some(ref tag) = self.route_tag {
+            headers.insert(
+                HeaderName::from_static("skroutetag"),
+                HeaderValue::from_str(tag).unwrap(),
+            );
+        }
+        headers
+    }
+
+    fn json_headers(&self, content_length: usize) -> reqwest::header::HeaderMap {
+        use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, HeaderValue};
+        let mut headers = self.auth_headers();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(
+            CONTENT_LENGTH,
+            HeaderValue::from_str(&content_length.to_string()).unwrap(),
+        );
+        headers
+    }
+
+    async fn request<TResp>(
+        &self,
+        path: &str,
+        body_provider: impl Fn() -> reqwest::RequestBuilder,
+        timeout: Duration,
+    ) -> Result<TResp>
+    where
+        TResp: DeserializeOwned,
+    {
+        let url = format!("{}/{}", ILINK_API_ROOT, path);
+        let mut last_err = None;
+
+        for attempt in 0..MAX_RETRIES {
+            if attempt > 0 {
+                let delay = RETRY_BASE_MS * (1u64 << (attempt - 1));
+                tokio::time::sleep(Duration::from_millis(delay)).await;
+            }
+
+            let response_bytes = match body_provider()
+                .timeout(timeout)
+                .send()
+                .await
+            {
+                Ok(resp) => match resp.bytes().await {
+                    Ok(bytes) => bytes,
+                    Err(e) => {
+                        let err = anyhow::Error::from(e).context(format!("error reading response body for url ({url})"));
+                        if is_retryable(&err) && attempt + 1 < MAX_RETRIES {
+                            last_err = Some(err);
+                            continue;
+                        }
+                        return Err(err);
+                    }
+                },
+                Err(e) => {
+                    let err = anyhow::Error::from(e).context(format!("error sending request for url ({url})"));
+                    if is_retryable(&err) && attempt + 1 < MAX_RETRIES {
+                        last_err = Some(err);
+                        continue;
+                    }
+                    return Err(err);
+                }
+            };
+
+            match Self::decode_response::<TResp>(&response_bytes) {
+                Ok(resp) => return Ok(resp),
+                Err(e) => {
+                    if is_retryable(&e) && attempt + 1 < MAX_RETRIES {
+                        last_err = Some(e);
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| anyhow::anyhow!("request failed after {MAX_RETRIES} attempts")))
+    }
+
+    async fn post_json<TReq, TResp>(
+        &self,
+        path: &str,
+        body: &TReq,
+        timeout: Duration,
+    ) -> Result<TResp>
+    where
+        TReq: Serialize + ?Sized,
+        TResp: DeserializeOwned,
+    {
+        let body_bytes = serde_json::to_vec(body).context("failed to serialize request body")?;
+        let url = format!("{}/{}", ILINK_API_ROOT, path);
+
+        self.request(
+            path,
+            || {
+                let headers = self.json_headers(body_bytes.len());
+                self.client.post(&url).headers(headers).body(body_bytes.clone())
+            },
+            timeout,
+        )
+        .await
+    }
+
+    async fn post_form<TResp>(
+        &self,
+        path: &str,
+        form: &[(&str, &str)],
+        timeout: Duration,
+    ) -> Result<TResp>
+    where
+        TResp: DeserializeOwned,
+    {
+        let url = format!("{}/{}", ILINK_API_ROOT, path);
+        self.request(
+            path,
+            || {
+                self.client
+                    .post(&url)
+                    .headers(self.auth_headers())
+                    .form(form)
+            },
+            timeout,
+        )
+        .await
+    }
+
+    fn decode_response<T>(response_bytes: &[u8]) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        let status: ApiStatus =
+            serde_json::from_slice(response_bytes).context("failed to decode API status")?;
+
+        // Priority 1: errcode (often for session/auth errors)
+        if let Some(code) = status.errcode {
+            if code == SESSION_EXPIRED_ERRCODE {
+                return Err(ApiError {
+                    code,
+                    message: "Invalid bot token".to_string(),
+                }
+                .into());
+            }
+            if code != 0 {
+                return Err(ApiError {
+                    code,
+                    message: status.errmsg.unwrap_or_else(|| "unknown error".to_string()),
+                }
+                .into());
+            }
+        }
+
+        // Priority 2: ret (often for business logic errors)
+        if let Some(code) = status.ret {
+            if code != 0 {
+                let message = match code {
+                    -2 => "Invalid context token".to_string(),
+                    -3 => "User ID mismatch or not found".to_string(),
+                    _ => status
+                        .err_msg
+                        .unwrap_or_else(|| "unknown error".to_string()),
+                };
+                return Err(ApiError { code, message }.into());
+            }
+        }
+
+        serde_json::from_slice(response_bytes).context("failed to decode API response")
+    }
+
+    pub async fn fetch_qr_code(&self) -> Result<FetchQrCodeResponse> {
+        self.post_form(
+            "ilink/bot/get_bot_qrcode",
+            &[("bot_type", "3")],
+            Duration::from_secs(30),
+        )
+        .await
+    }
+
+    pub async fn get_qr_code_status(&self, qrcode_id: &str) -> Result<QrCodeStatusResponse> {
+        self.post_form(
+            "ilink/bot/get_qrcode_status",
+            &[("qrcode", qrcode_id)],
+            Duration::from_secs(40),
+        )
+        .await
+    }
+
+    pub async fn get_updates(&self, buf: Option<&str>) -> Result<GetUpdatesResponse> {
+        let body = GetUpdatesRequest {
+            get_updates_buf: buf.map(str::to_string),
+            base_info: super::models::BaseInfo::current(),
+        };
+        self.post_json("ilink/bot/getupdates", &body, Duration::from_secs(40))
+            .await
+    }
+
+    pub async fn send_message(&self, body: &SendMessageRequest) -> Result<EmptyResponse> {
+        self.post_json("ilink/bot/sendmessage", body, Duration::from_secs(30))
+            .await
+    }
+
+    pub async fn send_text_message(
+        &self,
+        to_user_id: &str,
+        context_token: &str,
+        text: &str,
+    ) -> Result<EmptyResponse> {
+        let body = SendMessageRequest::new(
+            to_user_id.to_string(),
+            context_token.to_string(),
+            super::models::OutboundMessageItem::text(text.to_string()),
+        );
+        self.send_message(&body).await
+    }
+
+    pub async fn send_media_message(
+        &self,
+        to_user_id: &str,
+        context_token: &str,
+        text: Option<&str>,
+        media_item: super::models::OutboundMessageItem,
+    ) -> Result<EmptyResponse> {
+        if let Some(t) = text {
+            self.send_text_message(to_user_id, context_token, t).await?;
+        }
+
+        let body = SendMessageRequest::new(
+            to_user_id.to_string(),
+            context_token.to_string(),
+            media_item,
+        );
+        self.send_message(&body).await
+    }
+
+    pub async fn get_upload_url(
+        &self,
+        payload: &GetUploadUrlRequest,
+    ) -> Result<GetUploadUrlResponse> {
+        self.post_json("ilink/bot/getuploadurl", payload, Duration::from_secs(30))
+            .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_new() {
+        let client = WeixinApiClient::new("tok_123", None);
+        assert_eq!(client.bot_token, "tok_123");
+        assert!(client.route_tag.is_none());
+    }
+
+    #[test]
+    fn test_decode_response_success() {
+        let bytes = b"{}";
+        let res: Result<EmptyResponse> = WeixinApiClient::decode_response(bytes);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_decode_response_invalid_token() {
+        let bytes = b"{\"ret\":-2}";
+        let res: Result<EmptyResponse> = WeixinApiClient::decode_response(bytes);
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err.to_string().contains("Invalid context token"));
+        assert!(err.to_string().contains("-2"));
+    }
+
+    #[test]
+    fn test_decode_response_wrong_user() {
+        let bytes = b"{\"ret\":-3}";
+        let res: Result<EmptyResponse> = WeixinApiClient::decode_response(bytes);
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err.to_string().contains("User ID mismatch or not found"));
+        assert!(err.to_string().contains("-3"));
+    }
+
+    #[test]
+    fn test_decode_response_session_expired() {
+        let bytes = b"{\"errcode\":-14,\"errmsg\":\"session timeout\"}";
+        let res: Result<EmptyResponse> = WeixinApiClient::decode_response(bytes);
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err.is::<ApiError>());
+        assert!(is_session_expired(&err));
+        assert!(err.to_string().contains("Invalid bot token"));
+        assert!(err.to_string().contains("-14"));
+    }
+
+    #[test]
+    fn test_decode_response_unknown_api_error() {
+        let bytes = b"{\"ret\":-99, \"err_msg\":\"something went wrong\"}";
+        let res: Result<EmptyResponse> = WeixinApiClient::decode_response(bytes);
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err.to_string().contains("something went wrong"));
+        assert!(err.to_string().contains("-99"));
+    }
+}
