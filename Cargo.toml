@@ -1,0 +1,32 @@
+[package]
+name = "wechat-clawbot"
+version = "0.8.0"
+edition = "2024"
+rust-version = "1.96"
+
+[dependencies]
+aes = "0.9"
+anyhow = "1.0"
+base64 = "0.22"
+block-padding = "0.4"
+cipher = { version = "0.5", features = ["alloc"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+ecb = "0.2"
+hex = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+mime_guess = "2"
+md5 = "0.8"
+qrcode = "0.14"
+rand = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time", "io-std", "io-util"] }
+env_logger = "0.11"
+uuid = { version = "1", features = ["v4"] }
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+bcrypt = "0.19"
