@@ -1,0 +1,1192 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>WeChat Bot Manager</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                background: #0d1117;
+                color: #c9d1d9;
+            }
+            .container {
+                max-width: 720px;
+                margin: 0 auto;
+                padding: 24px;
+            }
+            .card {
+                background: #161b22;
+                border-radius: 12px;
+                padding: 24px;
+                margin-bottom: 16px;
+                border: 1px solid #30363d;
+            }
+            h1 {
+                font-size: 24px;
+                margin-bottom: 20px;
+                color: #f0f6fc;
+            }
+            h2 {
+                font-size: 18px;
+                margin-bottom: 12px;
+                color: #f0f6fc;
+            }
+            input, textarea, select {
+                width: 100%;
+                padding: 10px 14px;
+                border: 1px solid #30363d;
+                border-radius: 8px;
+                font-size: 14px;
+                margin-bottom: 10px;
+                background: #0d1117;
+                color: #c9d1d9;
+                outline: none;
+                transition: border-color 0.2s;
+            }
+            input:focus, textarea:focus, select:focus {
+                border-color: #07c160;
+                box-shadow: 0 0 0 3px #07c16022;
+            }
+            textarea {
+                font-family: inherit;
+            }
+            select option {
+                background: #161b22;
+            }
+            button {
+                padding: 10px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.15s;
+            }
+            .btn-primary {
+                background: #07c160;
+                color: #fff;
+            }
+            .btn-primary:hover {
+                background: #06ad56;
+                box-shadow: 0 0 16px #07c16044;
+            }
+            .btn-primary:active {
+                transform: scale(0.98);
+            }
+            .btn-secondary {
+                background: #21262d;
+                color: #c9d1d9;
+                border: 1px solid #30363d;
+            }
+            .btn-secondary:hover {
+                background: #30363d;
+            }
+            .btn-danger {
+                background: #fa5151;
+                color: #fff;
+            }
+            .btn-block {
+                width: 100%;
+            }
+            .tab-bar {
+                display: flex;
+                gap: 8px;
+                margin-bottom: 16px;
+            }
+            .tab {
+                flex: 1;
+                text-align: center;
+                padding: 10px 16px;
+                border-radius: 8px;
+                cursor: pointer;
+                background: #21262d;
+                color: #8b949e;
+                border: 1px solid #30363d;
+                transition: all 0.2s;
+                font-size: 15px;
+                font-weight: 500;
+            }
+            .tab:hover {
+                background: #2d333b;
+            }
+            .tab.active {
+                background: #07c160;
+                color: #fff;
+                border-color: #07c160;
+            }
+            .hidden {
+                display: none !important;
+            }
+            .msg {
+                margin-top: 12px;
+                padding: 10px 14px;
+                border-radius: 8px;
+                font-size: 13px;
+                animation: fadeIn 0.2s ease;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-4px); }
+                to   { opacity: 1; transform: translateY(0); }
+            }
+            .msg-error {
+                background: #3d1f1f;
+                color: #f87171;
+                border: 1px solid #5c2a2a;
+            }
+            .msg-success {
+                background: #1a3d2a;
+                color: #4ade80;
+                border: 1px solid #235536;
+            }
+            .msg-info {
+                background: #1a2d3d;
+                color: #60a5fa;
+                border: 1px solid #234568;
+            }
+            .qrcode-img {
+                max-width: 280px;
+                margin: 16px auto;
+                display: block;
+                border-radius: 8px;
+            }
+            .status-dot {
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                margin-right: 6px;
+            }
+            .status-bound {
+                background: #4ade80;
+                box-shadow: 0 0 6px #4ade8080;
+            }
+            .status-unbound {
+                background: #f87171;
+                box-shadow: 0 0 6px #f8717180;
+            }
+            .message-item {
+                padding: 8px 0;
+                border-bottom: 1px solid #21262d;
+                color: #c9d1d9;
+            }
+            .message-item:last-child {
+                border-bottom: none;
+            }
+            .message-item small {
+                color: #8b949e;
+            }
+            .webhook-url {
+                background: #0d1117;
+                padding: 10px;
+                border-radius: 8px;
+                font-family: monospace;
+                font-size: 13px;
+                word-break: break-all;
+                margin: 8px 0;
+                border: 1px solid #30363d;
+                color: #58a6ff;
+            }
+            .webhook-example {
+                background: #0d1117;
+                padding: 10px;
+                border-radius: 8px;
+                font-family: monospace;
+                font-size: 13px;
+                overflow-x: auto;
+                white-space: pre-wrap;
+                word-break: break-all;
+                margin: 4px 0;
+                border: 1px solid #30363d;
+                color: #8b949e;
+            }
+            .webhook-tab {
+                padding: 4px 12px;
+                border-radius: 6px;
+                cursor: pointer;
+                background: #21262d;
+                color: #8b949e;
+                font-size: 13px;
+                border: 1px solid #30363d;
+            }
+            .webhook-tab.active {
+                background: #07c160;
+                color: #fff;
+                border-color: #07c160;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            th,
+            td {
+                padding: 6px 8px;
+                text-align: left;
+                border-bottom: 1px solid #21262d;
+            }
+            th {
+                background: #0d1117;
+                font-weight: 600;
+                color: #8b949e;
+            }
+            td {
+                color: #c9d1d9;
+            }
+            ::selection {
+                background: #07c16044;
+            }
+            ::placeholder {
+                color: #484f58;
+            }
+
+            /* ── Login page specific ─────────────────────── */
+            .login-logo {
+                text-align: center;
+                padding: 32px 0 12px;
+            }
+            .login-logo svg {
+                width: 56px;
+                height: 56px;
+            }
+            .login-logo h1 {
+                font-size: 22px;
+                margin: 16px 0 4px;
+                font-weight: 600;
+                letter-spacing: -0.3px;
+            }
+            .login-logo p {
+                color: #8b949e;
+                font-size: 13px;
+            }
+            .login-card {
+                padding: 20px 24px 24px;
+            }
+            .login-card .tab-bar {
+                margin-bottom: 20px;
+            }
+            .input-group {
+                position: relative;
+                margin-bottom: 10px;
+            }
+            .input-group input {
+                margin-bottom: 0;
+                padding: 10px 14px 10px 38px;
+            }
+            .input-group .icon {
+                position: absolute;
+                left: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: #484f58;
+                width: 18px;
+                height: 18px;
+                pointer-events: none;
+            }
+            .input-group .icon svg {
+                width: 18px;
+                height: 18px;
+                fill: #484f58;
+            }
+            .captcha-wrapper {
+                display: flex;
+                gap: 10px;
+                align-items: flex-start;
+                margin-bottom: 10px;
+            }
+            .captcha-wrapper img {
+                width: 130px;
+                height: 40px;
+                border-radius: 6px;
+                cursor: pointer;
+                border: 1px solid #30363d;
+                flex-shrink: 0;
+            }
+            .captcha-wrapper input {
+                flex: 1;
+                margin-bottom: 0;
+            }
+            .login-btn {
+                margin-top: 4px;
+                height: 44px;
+                font-size: 15px;
+                font-weight: 500;
+                letter-spacing: 0.5px;
+            }
+            .login-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            .form-footer {
+                text-align: center;
+                margin-top: 16px;
+                font-size: 13px;
+                color: #484f58;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container" id="app">
+            <div id="page-login">
+                <div class="card" style="padding:0;border:none;background:transparent">
+                    <div class="login-logo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#07c160" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                        </svg>
+                        <h1>WeChat Bot</h1>
+                        <p>微信 iLink 机器人管理后台</p>
+                    </div>
+                </div>
+                <div class="card login-card">
+                    <div class="tab-bar">
+                        <div class="tab active" onclick="switchTab('login')">
+                            登录
+                        </div>
+                        <div class="tab" onclick="switchTab('register')">
+                            注册
+                        </div>
+                    </div>
+                    <div id="form-login">
+                        <div class="input-group">
+                            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
+                            <input id="login-username" placeholder="用户名" autocomplete="username" />
+                        </div>
+                        <div class="input-group">
+                            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                            <input id="login-password" type="password" placeholder="密码" autocomplete="current-password" />
+                        </div>
+                        <div id="login-captcha-section" class="hidden">
+                            <div class="captcha-wrapper">
+                                <img id="login-captcha-img" onclick="fetchCaptcha('login')" />
+                                <input id="login-captcha-input" placeholder="验证码" />
+                            </div>
+                        </div>
+                        <button class="btn-primary btn-block login-btn" onclick="doLogin()" id="login-btn">
+                            登 录
+                        </button>
+                        <div id="login-msg" class="msg hidden"></div>
+                    </div>
+                    <div id="form-register" class="hidden">
+                        <div class="input-group">
+                            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
+                            <input id="register-username" placeholder="用户名" autocomplete="username" />
+                        </div>
+                        <div class="input-group">
+                            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                            <input id="register-password" type="password" placeholder="密码" autocomplete="new-password" />
+                        </div>
+                        <div id="register-captcha-section" class="hidden">
+                            <div class="captcha-wrapper">
+                                <img id="register-captcha-img" onclick="fetchCaptcha('register')" />
+                                <input id="register-captcha-input" placeholder="验证码" />
+                            </div>
+                        </div>
+                        <button class="btn-primary btn-block login-btn" onclick="doRegister()" id="register-btn">
+                            注 册
+                        </button>
+                        <div id="register-msg" class="msg hidden"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="page-dashboard" class="hidden">
+                <div class="card">
+                    <div
+                        style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        "
+                    >
+                        <h1>WeChat Bot</h1>
+                        <div>
+                            <button
+                                class="btn-secondary hidden"
+                                id="btn-admin"
+                                onclick="toggleAdmin()"
+                            >
+                                管理面板
+                            </button>
+                            <button class="btn-secondary" onclick="doLogout()">
+                                退出
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>微信绑定状态</h2>
+                    <p id="bind-status">
+                        <span class="status-dot status-unbound"></span>未绑定
+                    </p>
+                    <div id="bound-info" class="hidden">
+                        <p>
+                            <strong>微信用户 ID:</strong>
+                            <span id="wechat-user-id"></span>
+                        </p>
+                        <p><strong>Webhook 地址:</strong></p>
+                        <div class="webhook-url" id="webhook-url"></div>
+                        <div id="webhook-usage" class="hidden" style="margin-top:12px">
+                            <p><strong>使用示例:</strong></p>
+                            <div style="display:flex;gap:6px;margin:8px 0">
+                                <div class="webhook-tab active" data-lang="curl" onclick="switchWebhookTab('curl')">curl</div>
+                                <div class="webhook-tab" data-lang="python" onclick="switchWebhookTab('python')">Python</div>
+                                <div class="webhook-tab" data-lang="rust" onclick="switchWebhookTab('rust')">Rust</div>
+                            </div>
+                            <pre class="webhook-example" id="webhook-example-curl"></pre>
+                            <pre class="webhook-example hidden" id="webhook-example-python"></pre>
+                            <pre class="webhook-example hidden" id="webhook-example-rust"></pre>
+                        </div>
+                    </div>
+                    <div id="bind-section">
+                        <button
+                            class="btn-primary btn-block"
+                            onclick="startBind()"
+                            id="btn-bind"
+                        >
+                            扫码绑定微信（扫码登陆后需要发送一条消息用于激活）
+                        </button>
+                    </div>
+                    <div id="bind-poll" class="hidden">
+                        <p id="bind-poll-status" class="msg msg-info">
+                            等待扫码...(扫码完成后手动刷新页面)
+                        </p>
+                        <img id="qrcode-display" class="qrcode-img" />
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>发送消息</h2>
+                    <textarea
+                        id="send-text"
+                        style="
+                            width: 100%;
+                            padding: 10px;
+                            border: 1px solid #ddd;
+                            border-radius: 8px;
+                            font-size: 14px;
+                            min-height: 60px;
+                            resize: vertical;
+                        "
+                        placeholder="输入消息内容..."
+                    ></textarea>
+                    <div style="margin-top: 8px; display: flex; gap: 8px">
+                        <button class="btn-primary" onclick="doSend()">
+                            发送
+                        </button>
+                        <button class="btn-secondary" onclick="doPoll()">
+                            刷新消息
+                        </button>
+                    </div>
+                    <div id="send-msg" class="msg hidden"></div>
+                </div>
+
+                <div class="card">
+                    <h2>修改密码</h2>
+                    <input id="change-pwd-old" type="password" placeholder="当前密码" />
+                    <input id="change-pwd-new" type="password" placeholder="新密码" />
+                    <button class="btn-primary btn-block" onclick="doChangePassword()">
+                        修改密码
+                    </button>
+                    <div id="change-pwd-msg" class="msg hidden"></div>
+                </div>
+
+                <div class="card">
+                    <h2>最近消息</h2>
+                    <div id="message-list">
+                        <p style="color: #999">暂无消息</p>
+                    </div>
+                    <div id="msg-pagination" class="hidden" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+                        <button class="btn-secondary" onclick="msgPage--;doPoll()" id="msg-prev">上一页</button>
+                        <span id="msg-page-info" style="font-size:13px;color:#666"></span>
+                        <button class="btn-secondary" onclick="msgPage++;doPoll()" id="msg-next">下一页</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-admin" class="hidden">
+                <div class="card">
+                    <div
+                        style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        "
+                    >
+                        <h1>管理面板</h1>
+                        <button class="btn-secondary" onclick="toggleAdmin()">
+                            返回
+                        </button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>用户列表</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>用户名</th>
+                                <th>角色</th>
+                                <th>微信绑定</th>
+                                <th>微信ID</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-body"></tbody>
+                    </table>
+                </div>
+                <div class="card" id="admin-send-section">
+                    <h2>快捷发送</h2>
+                    <p style="font-size:13px;color:#666;margin-bottom:12px">
+                        向指定微信用户发送消息
+                    </p>
+                    <select
+                        id="admin-send-target"
+                        style="width:100%;margin-bottom:8px"
+                    >
+                        <option value="">选择用户...</option>
+                    </select>
+                    <textarea
+                        id="admin-send-text"
+                        style="
+                            width: 100%;
+                            padding: 10px;
+                            border: 1px solid #ddd;
+                            border-radius: 8px;
+                            font-size: 14px;
+                            min-height: 60px;
+                            resize: vertical;
+                        "
+                        placeholder="输入消息内容..."
+                    ></textarea>
+                    <div style="margin-top: 8px; display: flex; gap: 8px">
+                        <button class="btn-primary" onclick="doAdminSend()">
+                            发送
+                        </button>
+                    </div>
+                    <div id="admin-send-msg" class="msg hidden"></div>
+                </div>
+                <div class="card" id="admin-broadcast-section">
+                    <h2>广播消息</h2>
+                    <div id="broadcast-input-section">
+                        <p style="font-size:13px;color:#666;margin-bottom:12px">
+                            向所有已绑定的微信用户发送消息
+                        </p>
+                        <textarea
+                            id="broadcast-text"
+                            style="
+                                width: 100%;
+                                padding: 10px;
+                                border: 1px solid #ddd;
+                                border-radius: 8px;
+                                font-size: 14px;
+                                min-height: 60px;
+                                resize: vertical;
+                            "
+                            placeholder="输入广播消息内容..."
+                        ></textarea>
+                        <div style="margin-top: 8px; display: flex; gap: 8px">
+                            <button class="btn-primary" onclick="doBroadcast()">
+                                发送广播
+                            </button>
+                        </div>
+                        <div id="broadcast-msg" class="msg hidden"></div>
+                    </div>
+                    <div style="margin-top:12px">
+                        <p><strong>Webhook 地址:</strong></p>
+                        <div class="webhook-url" id="broadcast-webhook-url"></div>
+                        <div style="margin-top:8px">
+                            <p><strong>使用示例:</strong></p>
+                            <div style="display:flex;gap:6px;margin:8px 0">
+                                <div class="webhook-tab active" data-lang="broadcast-curl" onclick="switchWebhookTab('broadcast-curl')">curl</div>
+                                <div class="webhook-tab" data-lang="broadcast-python" onclick="switchWebhookTab('broadcast-python')">Python</div>
+                                <div class="webhook-tab" data-lang="broadcast-rust" onclick="switchWebhookTab('broadcast-rust')">Rust</div>
+                            </div>
+                            <pre class="webhook-example" id="webhook-example-broadcast-curl"></pre>
+                            <pre class="webhook-example hidden" id="webhook-example-broadcast-python"></pre>
+                            <pre class="webhook-example hidden" id="webhook-example-broadcast-rust"></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>修改用户密码</h2>
+                    <select id="admin-pwd-target" style="width:100%;margin-bottom:8px">
+                        <option value="">选择用户...</option>
+                    </select>
+                    <input id="admin-pwd-new" type="password" placeholder="新密码" />
+                    <button class="btn-primary btn-block" onclick="doAdminChangePassword()">
+                        修改密码
+                    </button>
+                    <div id="admin-pwd-msg" class="msg hidden"></div>
+                </div>
+                <div class="card">
+                    <h2>消息历史</h2>
+                    <select
+                        id="admin-msg-filter"
+                        onchange="adminMsgPage=1;loadAdminMessages()"
+                        style="width: 100%; margin-bottom: 12px"
+                    >
+                        <option value="">所有用户</option>
+                    </select>
+                    <div id="admin-messages-list">
+                        <p style="color: #999">暂无消息</p>
+                    </div>
+                    <div id="admin-msg-pagination" class="hidden" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+                        <button class="btn-secondary" onclick="adminMsgPage--;loadAdminMessages()" id="admin-msg-prev">上一页</button>
+                        <span id="admin-msg-page-info" style="font-size:13px;color:#666"></span>
+                        <button class="btn-secondary" onclick="adminMsgPage++;loadAdminMessages()" id="admin-msg-next">下一页</button>
+                    </div>
+                </div>
+            </div>
+
+        <script>
+            let token = localStorage.getItem("token");
+            let adminMsgPage = 1;
+            let msgPage = 1;
+            let captchaId = { login: null, register: null };
+            let captchaImages = { login: null, register: null };
+
+            function getBaseUrl() {
+                return localStorage.getItem("externalUrl") || window.location.origin;
+            }
+
+            function show(id) {
+                document.getElementById(id).classList.remove("hidden");
+            }
+            function hide(id) {
+                document.getElementById(id).classList.add("hidden");
+            }
+            function msg(id, text, type) {
+                const el = document.getElementById(id);
+                el.textContent = text;
+                el.className = "msg msg-" + type;
+                el.classList.remove("hidden");
+            }
+
+            function switchTab(tab) {
+                document
+                    .querySelectorAll(".tab")
+                    .forEach((t) => t.classList.remove("active"));
+                if (tab === "login") {
+                    document
+                        .querySelector(".tab-bar .tab:first-child")
+                        .classList.add("active");
+                    hide("form-register");
+                    show("form-login");
+                } else {
+                    document
+                        .querySelector(".tab-bar .tab:last-child")
+                        .classList.add("active");
+                    hide("form-login");
+                    show("form-register");
+                }
+                fetchCaptcha(tab);
+            }
+
+            async function fetchCaptcha(tab) {
+                const res = await api("GET", "/api/captcha");
+                if (!res.success) return;
+                captchaId[tab] = res.data.captcha_id;
+                captchaImages[tab] = res.data.captcha_image;
+                const img = document.getElementById(tab + "-captcha-img");
+                const section = document.getElementById(tab + "-captcha-section");
+                if (img && section) {
+                    img.src = res.data.captcha_image;
+                    section.classList.remove("hidden");
+                }
+            }
+
+            function switchWebhookTab(lang) {
+                document.querySelectorAll('.webhook-example').forEach(el => el.classList.add('hidden'));
+                document.querySelectorAll('.webhook-tab').forEach(t => t.classList.remove('active'));
+                document.getElementById('webhook-example-' + lang).classList.remove('hidden');
+                document.querySelector('.webhook-tab[data-lang="' + lang + '"]').classList.add('active');
+            }
+
+            async function api(method, path, body) {
+                const headers = { "Content-Type": "application/json" };
+                if (token) headers["Authorization"] = "Bearer " + token;
+                const res = await fetch(path, {
+                    method,
+                    headers,
+                    body: body ? JSON.stringify(body) : undefined,
+                });
+                return res.json();
+            }
+
+            async function doLogin() {
+                const btn = document.getElementById("login-btn");
+                btn.disabled = true;
+                btn.textContent = "登录中...";
+                const username =
+                    document.getElementById("login-username").value;
+                const password =
+                    document.getElementById("login-password").value;
+                const body = { username, password };
+                const cid = captchaId.login;
+                const code = document.getElementById("login-captcha-input").value;
+                if (cid && code) { body.captcha_id = cid; body.captcha_code = code; }
+                const res = await api("POST", "/api/login", body);
+                btn.disabled = false;
+                btn.textContent = "登 录";
+                if (res.success) {
+                    token = res.data.token;
+                    localStorage.setItem("token", token);
+                    localStorage.setItem("role", res.data.role);
+                    showDashboard();
+                } else {
+                    msg("login-msg", res.message, "error");
+                    fetchCaptcha("login");
+                }
+            }
+
+            async function doRegister() {
+                const btn = document.getElementById("register-btn");
+                btn.disabled = true;
+                btn.textContent = "注册中...";
+                const username =
+                    document.getElementById("register-username").value;
+                const password =
+                    document.getElementById("register-password").value;
+                const body = { username, password };
+                const cid = captchaId.register;
+                const code = document.getElementById("register-captcha-input").value;
+                if (cid && code) { body.captcha_id = cid; body.captcha_code = code; }
+                const res = await api("POST", "/api/register", body);
+                btn.disabled = false;
+                btn.textContent = "注 册";
+                if (res.success) {
+                    token = res.data.token;
+                    localStorage.setItem("token", token);
+                    localStorage.setItem("role", res.data.role);
+                    showDashboard();
+                } else {
+                    msg("register-msg", res.message, "error");
+                    fetchCaptcha("register");
+                }
+            }
+
+            function doLogout() {
+                token = null;
+                localStorage.removeItem("token");
+                localStorage.removeItem("role");
+                hide("page-dashboard");
+                hide("page-admin");
+                show("page-login");
+            }
+
+            async function showDashboard() {
+                hide("page-login");
+                hide("page-admin");
+                show("page-dashboard");
+                msgPage = 1;
+                await refreshStatus();
+                // Refresh role from server (handles stale localStorage after promotion)
+                const role = localStorage.getItem("role");
+                if (role === "admin") {
+                    document
+                        .getElementById("btn-admin")
+                        .classList.remove("hidden");
+                } else {
+                    document
+                        .getElementById("btn-admin")
+                        .classList.add("hidden");
+                }
+                // Load recent messages on dashboard open
+                doPoll();
+            }
+
+            function toggleAdmin() {
+                const dash = document.getElementById("page-dashboard");
+                const admin = document.getElementById("page-admin");
+                if (dash.classList.contains("hidden")) {
+                    hide("page-admin");
+                    show("page-dashboard");
+                } else {
+                    hide("page-dashboard");
+                    show("page-admin");
+                    adminMsgPage = 1;
+                    // Load users first to populate filter, then messages
+                    loadAdminUsers().then(() => loadAdminMessages());
+                }
+            }
+
+            async function loadAdminUsers() {
+                const res = await api("GET", "/api/admin/users");
+                if (!res.success) return;
+                const users = res.data.users;
+                // Always populate broadcast webhook info
+                const baseUrl = getBaseUrl();
+                const token = localStorage.getItem("token");
+                document.getElementById("broadcast-webhook-url").textContent =
+                    baseUrl + "/webhook/broadcast/send";
+                document.getElementById("webhook-example-broadcast-curl").textContent =
+                    'curl -X POST ' + baseUrl + '/webhook/broadcast/send \\\n' +
+                    '  -H "Authorization: Bearer ' + token + '" \\\n' +
+                    '  -H "Content-Type: application/json" \\\n' +
+                    '  -d \'{"text":"hello everyone"}\'';
+                document.getElementById("webhook-example-broadcast-python").textContent =
+                    'import requests\n' +
+                    'r = requests.post(\n' +
+                    '    "' + baseUrl + '/webhook/broadcast/send",\n' +
+                    '    headers={"Authorization": "Bearer ' + token + '"},\n' +
+                    '    json={"text": "hello everyone"}\n' +
+                    ')\n' +
+                    'print(r.json())';
+                document.getElementById("webhook-example-broadcast-rust").textContent =
+                    'let client = reqwest::Client::new();\n' +
+                    'let resp = client\n' +
+                    '    .post("' + baseUrl + '/webhook/broadcast/send")\n' +
+                    '    .header("Authorization", "Bearer ' + token + '")\n' +
+                    '    .json(&serde_json::json!({"text":"hello everyone"}))\n' +
+                    '    .send()\n' +
+                    '    .await?;';
+                const boundUsers = users.filter(u => u.wechat_user_id);
+                // Show/hide send interface based on bound users
+                document.getElementById("admin-broadcast-section").classList.remove("hidden");
+                if (boundUsers.length > 0) {
+                    document.getElementById("broadcast-input-section").classList.remove("hidden");
+                } else {
+                    document.getElementById("broadcast-input-section").classList.add("hidden");
+                }
+                const tbody = document.getElementById("admin-users-body");
+                if (!users || users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">暂无用户</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = users
+                    .map((u) => {
+                        const bound = u.wechat_bound ? "已绑定" : "未绑定";
+                        const wid = u.wechat_user_id || "-";
+                        return (
+                            "<tr><td>" +
+                            u.username +
+                            "</td><td>" +
+                            u.role +
+                            "</td><td>" +
+                            bound +
+                            "</td><td>" +
+                            wid +
+                            "</td></tr>"
+                        );
+                    })
+                    .join("");
+                // Build filter dropdown: "username (wechat_user_id)" as label
+                const select = document.getElementById("admin-msg-filter");
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">所有用户</option>';
+                users
+                    .filter((u) => u.wechat_user_id)
+                    .forEach((u) => {
+                        const opt = document.createElement("option");
+                        opt.value = u.wechat_user_id;
+                        opt.textContent =
+                            u.username + " (" + u.wechat_user_id + ")";
+                        if (u.wechat_user_id === currentVal)
+                            opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                // Build send target dropdown
+                const sendTarget = document.getElementById("admin-send-target");
+                sendTarget.innerHTML = '<option value="">选择用户...</option>';
+                boundUsers.forEach((u) => {
+                    const opt = document.createElement("option");
+                    opt.value = u.wechat_user_id;
+                    opt.textContent =
+                        u.username + " (" + u.wechat_user_id + ")";
+                    sendTarget.appendChild(opt);
+                });
+                // Build admin password change target dropdown
+                const pwdTarget = document.getElementById("admin-pwd-target");
+                pwdTarget.innerHTML = '<option value="">选择用户...</option>';
+                users.forEach((u) => {
+                    const opt = document.createElement("option");
+                    opt.value = u.username;
+                    opt.textContent = u.username + " (" + u.role + ")";
+                    pwdTarget.appendChild(opt);
+                });
+                // Ensure broadcast curl example is visible (may have been hidden by dashboard tab switch)
+                document.getElementById("webhook-example-broadcast-curl").classList.remove("hidden");
+                document.querySelector('.webhook-tab[data-lang="broadcast-curl"]').classList.add("active");
+            }
+
+            async function loadAdminMessages() {
+                const filter =
+                    document.getElementById("admin-msg-filter").value;
+                let url = "/api/admin/messages?page=" + adminMsgPage + "&page_size=15";
+                if (filter) {
+                    url += "&wechat_user_id=" + encodeURIComponent(filter);
+                }
+                const res = await api("GET", url);
+                if (!res.success) return;
+                const messages = res.data.messages;
+                const list = document.getElementById("admin-messages-list");
+                const pagination = document.getElementById("admin-msg-pagination");
+                if (!messages || messages.length === 0) {
+                    list.innerHTML =
+                        '<p style="color:#999">暂无消息，请先发送或接收消息</p>';
+                    pagination.classList.add("hidden");
+                    return;
+                }
+                list.innerHTML = messages
+                    .map((m) => {
+                        const dir = m.direction === "send" ? "发送" : "接收";
+                        const label = m.username
+                            ? m.username + " (" + m.wechat_user_id + ")"
+                            : m.wechat_user_id;
+                        let content = "";
+                        if (m.msg_type === "text") content = m.content;
+                        else if (m.msg_type === "image") content = "[图片]";
+                        else if (m.msg_type === "file") content = "[文件]";
+                        else content = "[未知]";
+                        return (
+                            '<div class="message-item"><small style="color:#999">[' +
+                            m.created_at +
+                            "]</small> <strong>" +
+                            label +
+                            "</strong> " +
+                            dir +
+                            ": " +
+                            content +
+                            "</div>"
+                        );
+                    })
+                    .join("");
+                // Update pagination
+                const total = res.data.total;
+                const totalPages = res.data.total_pages;
+                document.getElementById("admin-msg-page-info").textContent =
+                    "第 " + adminMsgPage + " / " + totalPages + " 页（共 " + total + " 条）";
+                document.getElementById("admin-msg-prev").disabled = adminMsgPage <= 1;
+                document.getElementById("admin-msg-next").disabled = adminMsgPage >= totalPages;
+                pagination.classList.remove("hidden");
+            }
+
+            async function refreshStatus() {
+                const res = await api("GET", "/api/me");
+                if (!res.success) {
+                    doLogout();
+                    return;
+                }
+                const d = res.data;
+                if (d.role) {
+                    localStorage.setItem("role", d.role);
+                }
+                if (d.wechat_bound) {
+                    document.getElementById("bind-status").innerHTML =
+                        '<span class="status-dot status-bound"></span>已绑定';
+                    document.getElementById("wechat-user-id").textContent =
+                        d.wechat_user_id;
+                    const baseUrl = getBaseUrl();
+                    document.getElementById("webhook-url").textContent =
+                        baseUrl + d.webhook_url;
+                    if (d.webhook_usage) {
+                        const hostPort = baseUrl.replace(/^https?:\/\//, '');
+                        const replacer = (s) => s.replace(/<host>:<port>/g, hostPort);
+                        document.getElementById("webhook-example-curl").textContent = replacer(d.webhook_usage.curl);
+                        document.getElementById("webhook-example-python").textContent = replacer(d.webhook_usage.python);
+                        document.getElementById("webhook-example-rust").textContent = replacer(d.webhook_usage.rust);
+                        show("webhook-usage");
+                        switchWebhookTab('curl');
+                    }
+                    show("bound-info");
+                    document.getElementById("btn-bind").textContent =
+                        "重新绑定";
+                } else {
+                    document.getElementById("bind-status").innerHTML =
+                        '<span class="status-dot status-unbound"></span>未绑定';
+                    hide("bound-info");
+                    document.getElementById("btn-bind").textContent =
+                        "扫码绑定微信";
+                }
+            }
+
+            async function startBind() {
+                hide("bind-section");
+                hide("send-msg");
+                show("bind-poll");
+                document.getElementById("bind-poll-status").textContent =
+                    "正在获取二维码...";
+                const res = await api("GET", "/api/bind/qrcode");
+                if (!res.success) {
+                    document.getElementById("bind-poll-status").textContent =
+                        "获取二维码失败: " + res.message;
+                    return;
+                }
+                const qrcodeId = res.data.qrcode_id;
+                document.getElementById("qrcode-display").src =
+                    "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" +
+                    encodeURIComponent(res.data.qrcode_url);
+                document.getElementById("bind-poll-status").textContent =
+                    "请用微信扫描二维码";
+                pollBind(qrcodeId);
+            }
+
+            async function pollBind(qrcodeId) {
+                const res = await api("POST", "/api/bind/status", {
+                    qrcode_id: qrcodeId,
+                });
+                if (!res.success) {
+                    document.getElementById("bind-poll-status").textContent =
+                        "查询失败: " + res.message;
+                    hide("bind-poll");
+                    show("bind-section");
+                    return;
+                }
+                if (res.data.status === "confirmed") {
+                    document.getElementById("bind-poll-status").textContent =
+                        "绑定成功!";
+                    setTimeout(() => {
+                        hide("bind-poll");
+                        show("bind-section");
+                        refreshStatus();
+                    }, 1500);
+                } else if (res.data.status === "expired") {
+                    document.getElementById("bind-poll-status").textContent =
+                        "二维码已过期，请重新尝试";
+                    setTimeout(() => {
+                        hide("bind-poll");
+                        show("bind-section");
+                    }, 2000);
+                } else {
+                    document.getElementById("bind-poll-status").textContent =
+                        res.data.status === "scaned"
+                            ? "已扫码，请在手机上确认"
+                            : "等待扫码...";
+                    setTimeout(() => pollBind(qrcodeId), 2000);
+                }
+            }
+
+            async function doSend() {
+                const text = document.getElementById("send-text").value;
+                if (!text.trim()) {
+                    msg("send-msg", "请输入消息内容", "error");
+                    return;
+                }
+                const res = await api("POST", "/api/send", { text });
+                if (res.success) {
+                    msg("send-msg", "消息已发送", "success");
+                    document.getElementById("send-text").value = "";
+                } else {
+                    msg("send-msg", res.message, "error");
+                }
+            }
+
+            async function doChangePassword() {
+                const oldPwd = document.getElementById("change-pwd-old").value;
+                const newPwd = document.getElementById("change-pwd-new").value;
+                if (!oldPwd || !newPwd) {
+                    msg("change-pwd-msg", "请填写当前密码和新密码", "error");
+                    return;
+                }
+                const res = await api("POST", "/api/change-password", { old_password: oldPwd, new_password: newPwd });
+                if (res.success) {
+                    msg("change-pwd-msg", "密码修改成功", "success");
+                    document.getElementById("change-pwd-old").value = "";
+                    document.getElementById("change-pwd-new").value = "";
+                } else {
+                    msg("change-pwd-msg", res.message, "error");
+                }
+            }
+
+            async function doAdminChangePassword() {
+                const target = document.getElementById("admin-pwd-target").value;
+                const newPwd = document.getElementById("admin-pwd-new").value;
+                if (!target) {
+                    msg("admin-pwd-msg", "请选择目标用户", "error");
+                    return;
+                }
+                if (!newPwd) {
+                    msg("admin-pwd-msg", "请填写新密码", "error");
+                    return;
+                }
+                const res = await api("POST", "/api/admin/change-password", { username: target, new_password: newPwd });
+                if (res.success) {
+                    msg("admin-pwd-msg", "密码已修改: " + res.message, "success");
+                    document.getElementById("admin-pwd-new").value = "";
+                } else {
+                    msg("admin-pwd-msg", res.message, "error");
+                }
+            }
+
+            async function doAdminSend() {
+                const uid = document.getElementById("admin-send-target").value;
+                if (!uid) {
+                    msg("admin-send-msg", "请选择目标用户", "error");
+                    return;
+                }
+                const text = document.getElementById("admin-send-text").value;
+                if (!text.trim()) {
+                    msg("admin-send-msg", "请输入消息内容", "error");
+                    return;
+                }
+                const res = await api("POST", "/webhook/" + encodeURIComponent(uid) + "/send", { text });
+                if (res.success) {
+                    msg("admin-send-msg", "消息已发送到 " + uid, "success");
+                    document.getElementById("admin-send-text").value = "";
+                } else {
+                    msg("admin-send-msg", res.message, "error");
+                }
+            }
+
+            async function doBroadcast() {
+                const text = document.getElementById("broadcast-text").value;
+                if (!text.trim()) {
+                    msg("broadcast-msg", "请输入消息内容", "error");
+                    return;
+                }
+                const res = await api("POST", "/webhook/broadcast/send", { text });
+                if (res.success) {
+                    msg("broadcast-msg", "广播结果: " + res.message, "success");
+                    document.getElementById("broadcast-text").value = "";
+                } else {
+                    msg("broadcast-msg", res.message, "error");
+                }
+            }
+
+            async function doPoll() {
+                const res = await api("GET", "/api/messages?page=" + msgPage + "&page_size=15");
+                if (!res.success) return;
+                const messages = res.data.messages;
+                const list = document.getElementById("message-list");
+                const pagination = document.getElementById("msg-pagination");
+                if (!messages || messages.length === 0) {
+                    list.innerHTML = '<p style="color:#999">暂无消息</p>';
+                    pagination.classList.add("hidden");
+                    return;
+                }
+                list.innerHTML = messages
+                    .map((m) => {
+                        let content = "";
+                        if (m.text) content = m.text;
+                        else if (m.image) content = "[图片]";
+                        else if (m.file) content = "[文件]";
+                        else content = "[未知]";
+                        return (
+                            '<div class="message-item"><strong>' +
+                            m.from_user_id +
+                            "</strong>: " +
+                            content +
+                            "</div>"
+                        );
+                    })
+                    .join("");
+                const total = res.data.total;
+                const totalPages = res.data.total_pages;
+                document.getElementById("msg-page-info").textContent =
+                    "第 " + msgPage + " / " + totalPages + " 页（共 " + total + " 条）";
+                document.getElementById("msg-prev").disabled = msgPage <= 1;
+                document.getElementById("msg-next").disabled = msgPage >= totalPages;
+                pagination.classList.remove("hidden");
+            }
+
+            // Auto-login check
+            if (token) {
+                showDashboard().catch(() => doLogout());
+            } else {
+                fetchCaptcha("login");
+            }
+        </script>
+    </body>
+</html>
